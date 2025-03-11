@@ -1,4 +1,107 @@
-# bot
+# QQ Agent
+
+QQ Agent是一个基于NcatBot框架的QQ机器人，提供多种实用功能，包括链接管理、对联生成和表白功能。
+后续会接入 RAG 功能以及 tool 功能，实现更加智能的对话和信息检索。
+
+## 安装与运行
+
+### 环境要求
+
+- Python 3.8+
+- 安装了[napcat](https://github.com/napcat/napcat)服务端
+
+### 安装步骤
+
+1. 克隆仓库到本地：
+
+```bash
+git clone https://github.com/WncFht/QQ-Agent/tree/main
+cd QQ-Agent
+```
+
+2. 创建并激活虚拟环境（可选但推荐）：
+
+```bash
+# 使用venv
+python -m venv venv
+# Windows激活
+venv\Scripts\activate
+# Linux/Mac激活
+source venv/bin/activate
+```
+
+3. 安装依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+4. 配置机器人：
+
+编辑`bot/main.py`文件，设置以下配置项：
+
+```python
+CONFIG = {
+    "ws_uri": "ws://localhost:3001",  # napcat服务器地址
+    "admin_qq": ["你的QQ号"],  # 管理员QQ号列表
+    "bot_qq": "机器人QQ号",  # 机器人QQ号
+}
+```
+
+5. 运行机器人：
+
+```bash
+python main.py
+```
+
+### 插件说明
+
+NapcatBot支持以下插件：
+
+1. **LinkManager** - 链接管理插件
+   - 添加、查看和搜索链接
+   - 链接有效性检查
+   - 群组隔离
+
+2. **CoupletPlugin** - 对联插件
+   - 生成对联下联
+   - 随机对联生成
+
+3. **DeclarationPlugin** - 表白插件
+   - 生成随机表白语句
+   - 指定表白对象
+
+### 使用方法
+
+#### 链接管理
+
+```
+/add <链接URL> [-d 描述] [-t 标签1,标签2] [-a|-u] - 添加或更新链接
+/view <链接URL> - 查看链接详情
+/search <关键词> [-t 标签] - 搜索链接
+/check_links - 手动检查链接有效性
+```
+
+#### 对联功能
+
+```
+对联 <上联> - 生成对应的下联
+对对联 <上联> - 随机生成对应的下联
+```
+
+#### 表白功能
+
+```
+表白 <对象> - 向指定对象表白
+```
+
+#### 通用命令
+
+```
+/help - 查看所有可用指令
+网站 - 获取技术分享网站链接
+公告 - 查看群公告
+```
 
 ## 链接管理系统
 
