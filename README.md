@@ -28,12 +28,17 @@ python -m venv venv
 venv\Scripts\activate
 # Linux/Mac激活
 source venv/bin/activate
+
+# 使用 conda 创建虚拟环境
+conda create -n QQ-Agent python=3.12
+conda activate QQ-Agent
 ```
 
 3. 安装依赖：
 
 ```bash
 pip install -r requirements.txt
+sh install.sh
 ```
 
 4. 配置机器人：
