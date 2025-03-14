@@ -1,0 +1,22 @@
+{
+    "auto_summary_interval": 43200,
+    "manual_summary_interval": 300,
+    "min_messages": 10,
+    "trigger_keywords": [
+        "总结"
+    ],
+    "storage_path": "message_logs",
+    "save_interval": 300,
+    "api_configs": {
+        "deepseek": {
+            "base_url": "https://api.deepseek.com/v1/",
+            "api_key": "sk-f517db979fbc4d81869bfb246fa2abf1",
+            "model": "deepseek-chat",
+            "params": {
+                "max_tokens": 512,
+                "temperature": 0.4
+            }
+        },
+        "default": "deepseek"
+    }
+}

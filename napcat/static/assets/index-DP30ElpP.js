@@ -1,0 +1,1 @@
+import{j as t}from"./index-FGadtO5P.js";import{O as r}from"./react-router-dom-BfuE-jt0.js";import"./react-dom-_uqhELNW.js";import"./monaco-editor-D8uW_Xv_.js";import"./react-hot-toast-C9oLzaEU.js";import"./react-icons-BOjVsZdF.js";function u(){return t.jsx(r,{})}export{u as default};

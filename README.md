@@ -71,6 +71,17 @@ NapcatBot支持以下插件：
    - 生成随机表白语句
    - 指定表白对象
 
+4. **ChatbotPlugin** - 聊天机器人插件
+   - 支持多种大语言模型 API（DeepSeek、GLM 等）
+   - 支持群聊和私聊对话
+   - 可通过 @API名称 指定使用的 API
+
+5. **DailySummaryPlugin** - 群聊日报总结插件
+   - 自动记录群聊消息
+   - 定时或手动触发群聊总结
+   - 支持多种大语言模型 API
+   - 可配置总结间隔和触发条件
+
 ### 使用方法
 
 #### 链接管理
@@ -93,6 +104,21 @@ NapcatBot支持以下插件：
 
 ```
 表白 <对象> - 向指定对象表白
+```
+
+#### 聊天机器人功能
+
+```
+@机器人 <内容> - 在群聊中与机器人对话
+@机器人 @deepseek <内容> - 指定使用 DeepSeek API 回答
+@机器人 @glm <内容> - 指定使用 GLM API 回答
+私聊直接发送消息 - 在私聊中与机器人对话
+```
+
+#### 群聊总结功能
+
+```
+总结 - 手动触发群聊总结（需要满足最小消息数量和时间间隔条件）
 ```
 
 #### 通用命令
@@ -312,6 +338,121 @@ URL: https://example.com
 /search 搜索链接
 ```
 
+## 聊天机器人系统
+
+ChatbotPlugin 是一个基于大语言模型的聊天机器人插件，支持多种 API 接口，可以在群聊和私聊中提供智能对话服务。
+
+### 基本功能
+
+1. **多 API 支持**：支持 DeepSeek、GLM 等多种大语言模型 API，可以根据需要灵活切换。
+2. **群聊对话**：在群聊中通过 @ 机器人触发对话。
+3. **私聊对话**：在私聊中直接发送消息即可与机器人对话。
+4. **指定 API**：可以通过 `@api名称` 格式指定使用特定的 API 进行回答。
+
+### 配置说明
+
+ChatbotPlugin 使用 `.env` 文件进行配置，支持以下配置项：
+
+```
+# DeepSeek API 配置
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
+DEEPSEEK_BASE_URL=https://api.deepseek.com/v1/
+DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_MAX_TOKENS=256
+DEEPSEEK_TEMPERATURE=0.4
+
+# GLM API 配置
+GLM_API_KEY=EMPTY
+GLM_BASE_URL=http://127.0.0.1:8000/v1/
+GLM_MODEL=chatglm3-6b
+GLM_MAX_TOKENS=256
+GLM_TEMPERATURE=0.4
+GLM_PRESENCE_PENALTY=1.2
+GLM_TOP_P=0.8
+
+# 默认使用的 API
+DEFAULT_API=deepseek
+```
+
+首次运行时，插件会自动从 `.env.example` 创建 `.env` 文件，用户需要编辑该文件填入自己的 API 密钥。
+
+### 使用方法
+
+1. **群聊对话**：
+   ```
+   @机器人 你好，请介绍一下自己
+   ```
+
+2. **指定 API 对话**：
+   ```
+   @机器人 @deepseek 请解释一下量子计算的基本原理
+   @机器人 @glm 写一首关于春天的诗
+   ```
+
+3. **私聊对话**：
+   直接在私聊中发送消息即可。
+
+## 群聊日报总结系统
+
+DailySummaryPlugin 是一个自动记录和总结群聊消息的插件，可以定时或手动触发生成群聊总结，帮助用户快速了解群聊中的重要讨论内容。
+
+### 基本功能
+
+1. **消息记录**：自动记录群聊消息，包括发言人、时间和内容。
+2. **定时总结**：根据配置的时间间隔自动生成群聊总结。
+3. **手动触发**：通过关键词手动触发群聊总结。
+4. **多 API 支持**：支持多种大语言模型 API 生成总结内容。
+5. **历史记录**：保存上次总结时间，避免重复总结。
+
+### 配置说明
+
+DailySummaryPlugin 使用 `.env` 文件和 `config.json` 进行配置：
+
+#### .env 配置项
+
+```
+# DeepSeek API 配置
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
+DEEPSEEK_BASE_URL=https://api.deepseek.com/v1/
+DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_MAX_TOKENS=512
+DEEPSEEK_TEMPERATURE=0.4
+
+# GLM API 配置
+GLM_API_KEY=EMPTY
+GLM_BASE_URL=http://127.0.0.1:8000/v1/
+GLM_MODEL=chatglm3-6b
+GLM_MAX_TOKENS=256
+GLM_TEMPERATURE=0.4
+
+# 默认使用的 API
+DEFAULT_API=deepseek
+```
+
+#### config.json 配置项
+
+```json
+{
+    "auto_summary_interval": 43200,  // 自动总结间隔，12小时（秒）
+    "manual_summary_interval": 300,  // 手动总结间隔，5分钟（秒）
+    "min_messages": 10,              // 最小消息数量
+    "trigger_keywords": ["总结"],     // 触发关键词
+    "storage_path": "message_logs",  // 消息存储路径
+    "save_interval": 300             // 定期保存间隔（秒）
+}
+```
+
+### 使用方法
+
+1. **手动触发总结**：
+   在群聊中发送 `总结` 关键词，插件会检查是否满足总结条件（时间间隔和最小消息数量），如果满足则生成并发送总结。
+
+2. **自动总结**：
+   插件会根据配置的时间间隔自动生成群聊总结，无需手动触发。
+
+3. **总结内容**：
+   总结内容包括各个时间段内的主要讨论主题和重要互动，忽略无意义的闲聊，总结在 200 字以内。
+
 ## 待实现功能清单
 
 ### 1. 链接管理增强
@@ -320,17 +461,41 @@ URL: https://example.com
   - 标记失效链接
   - 自动通知创建者链接失效
 
-### 3. 群组功能增强
+### 2. 聊天机器人增强
+- [ ] 记忆功能
+  - 记住用户偏好和历史对话
+  - 个性化回复
+- [ ] 多轮对话支持
+  - 上下文理解
+  - 连续对话能力
+- [ ] 知识库集成
+  - 接入自定义知识库
+  - 回答特定领域问题
+
+### 3. 群聊总结增强
+- [ ] 总结模板定制
+  - 支持不同风格的总结
+  - 可配置总结长度和格式
+- [ ] 重要消息提取
+  - 自动识别重要消息
+  - 关键信息高亮
+- [ ] 多维度总结
+  - 按主题分类总结
+  - 按参与者分类总结
+
+### 4. 群组功能增强
 - [ ] 群组管理功能
   - 管理员可以编辑/删除任何链接
   - 批量导入/导出功能
   - 定期数据备份
 
-### 4. 数据分析与报告
+### 5. 数据分析与报告
 - [ ] 定期报告
   - 每日/周/月精选链接
+  - 群聊活跃度分析
+  - 话题热度统计
 
-### 5. 高级功能
+### 6. 高级功能
 - [ ] 链接内容预览
   - 自动提取网页标题和描述
   - 生成网页预览图
@@ -343,4 +508,8 @@ URL: https://example.com
   - 支持高级搜索语法
   - 搜索结果排序选项
   - 搜索历史记录
+- [ ] 多模态支持
+  - 图像识别和处理
+  - 语音转文字功能
+  - 文字转语音功能
 
