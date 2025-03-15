@@ -235,7 +235,7 @@ class DailySummaryPlugin(BasePlugin):
         user_id = msg.sender.user_id
         nickname = msg.sender.nickname
         message_content = msg.raw_message
-        timestamp = int(time.time())
+        timestamp = int(time.time()) # 也许以后可以用 msg.time
         formatted_time = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
         
         # 创建消息记录对象

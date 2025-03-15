@@ -25,7 +25,7 @@ import asyncio
 CONFIG = {
     "ws_uri": "ws://localhost:3001",
     "admin_qq": ["2130212584"],  # 管理员QQ号列表
-    "bot_qq": "2118660656",  # 机器人QQ号，请修改为你的机器人QQ号
+    "bot_qq": "2130212584",  # 机器人QQ号，请修改为你的机器人QQ号
 }
 
 # 设置WebSocket URI和机器人QQ号
