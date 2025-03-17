@@ -29013,7 +29013,7 @@ class PacketClientSession {
   }
 }
 
-const napCatVersion = "4.6.8";
+const napCatVersion = "4.7.5";
 
 const typedOffset = offset;
 class NTQQPacketApi {
@@ -41503,7 +41503,7 @@ class NodeIKernelSessionListener {
 }
 
 class NodeIKernelLoginListener {
-  onLoginConnected(...args) {
+  onLoginConnected() {
   }
   onLoginDisConnected(...args) {
   }
@@ -57351,7 +57351,7 @@ class OneBotQuickActionApi {
       notify = (await this.core.apis.GroupApi.getSingleScreenNotifies(true, 100)).find((e) => e.seq == flag);
       return { doubt: true, notify };
     }
-    return { doubt: true, notify };
+    return { doubt: false, notify };
   }
   async handleGroupRequest(request, quickAction) {
     const invite_notify = this.obContext.apis.MsgApi.notifyGroupInvite.get(request.flag);
@@ -57680,7 +57680,7 @@ class SetGroupAddRequest extends OneBotAction {
       notify = (await this.core.apis.GroupApi.getSingleScreenNotifies(true, 100)).find((e) => e.seq == flag);
       return { doubt: true, notify };
     }
-    return { doubt: true, notify };
+    return { doubt: false, notify };
   }
 }
 
@@ -60164,7 +60164,7 @@ function createActionMap(obContext, core) {
 
 const name = "napcat";
 const type = "module";
-const version = "4.6.8";
+const version = "4.7.5";
 const scripts = {"build:universal":"npm run build:webui && vite build --mode universal || exit 1","build:framework":"npm run build:webui && vite build --mode framework || exit 1","build:shell":"npm run build:webui && vite build --mode shell || exit 1","build:webui":"cd napcat.webui && npm run build","dev:universal":"vite build --mode universal","dev:framework":"vite build --mode framework","dev:shell":"vite build --mode shell","dev:webui":"cd napcat.webui && npm run dev","lint":"eslint --fix src/**/*.{js,ts,vue}","depend":"cd dist && npm install --omit=dev","dev:depend":"npm i && cd napcat.webui && npm i"};
 const devDependencies = {"@babel/preset-typescript":"^7.24.7","@eslint/compat":"^1.2.2","@eslint/eslintrc":"^3.1.0","@eslint/js":"^9.14.0","@ffmpeg.wasm/main":"^0.13.1","@homebridge/node-pty-prebuilt-multiarch":"^0.12.0-beta.5","@log4js-node/log4js-api":"^1.0.2","@napneko/nap-proto-core":"^0.0.4","@rollup/plugin-node-resolve":"^16.0.0","@rollup/plugin-typescript":"^12.1.2","@sinclair/typebox":"^0.34.9","@types/cors":"^2.8.17","@types/express":"^5.0.0","@types/multer":"^1.4.12","@types/node":"^22.0.1","@types/on-finished":"^2.3.4","@types/qrcode-terminal":"^0.12.2","@types/react-color":"^3.0.13","@types/type-is":"^1.6.7","@types/ws":"^8.5.12","@typescript-eslint/eslint-plugin":"^8.3.0","@typescript-eslint/parser":"^8.3.0","ajv":"^8.13.0","async-mutex":"^0.5.0","commander":"^13.0.0","cors":"^2.8.5","esbuild":"0.25.0","eslint":"^9.14.0","eslint-import-resolver-typescript":"^3.6.1","eslint-plugin-import":"^2.29.1","express-rate-limit":"^7.5.0","fast-xml-parser":"^4.3.6","file-type":"^20.0.0","globals":"^16.0.0","image-size":"^1.1.1","json5":"^2.2.3","multer":"^1.4.5-lts.1","typescript":"^5.3.3","typescript-eslint":"^8.13.0","vite":"^6.0.1","vite-plugin-cp":"^4.0.8","vite-tsconfig-paths":"^5.1.0","napcat.protobuf":"^1.1.3","winston":"^3.17.0","compressing":"^1.10.1"};
 const dependencies = {"@ffmpeg.wasm/core-mt":"^0.13.2","express":"^5.0.0","silk-wasm":"^3.6.1","ws":"^8.18.0"};
@@ -82914,101 +82914,104 @@ async function initializeLoginService(loginService, basicInfoWrapper, dataPathGl
   });
 }
 async function handleLogin(loginService, logger, pathWrapper, quickLoginUin, historyLoginList) {
-  return new Promise((resolve) => {
-    const loginListener = new NodeIKernelLoginListener();
-    let isLogined = false;
-    loginListener.onUserLoggedIn = (userid) => {
-      logger.logError(`当前账号(${userid})已登录,无法重复登录`);
-    };
-    loginListener.onQRCodeLoginSucceed = async (loginResult) => {
-      isLogined = true;
-      resolve({
-        uid: loginResult.uid,
-        uin: loginResult.uin,
-        nick: "",
-        online: true
-      });
-    };
-    loginListener.onQRCodeGetPicture = ({ pngBase64QrcodeData, qrcodeUrl }) => {
-      WebUiDataRuntime.setQQLoginQrcodeURL(qrcodeUrl);
-      const realBase64 = pngBase64QrcodeData.replace(/^data:image\/\w+;base64,/, "");
-      const buffer = Buffer.from(realBase64, "base64");
-      logger.logWarn("请扫描下面的二维码，然后在手Q上授权登录：");
-      const qrcodePath = path__default.join(pathWrapper.cachePath, "qrcode.png");
-      qrcode.generate(qrcodeUrl, { small: true }, (res) => {
-        logger.logWarn([
-          "\n",
-          res,
-          "二维码解码URL: " + qrcodeUrl,
-          "如果控制台二维码无法扫码，可以复制解码url到二维码生成网站生成二维码再扫码，也可以打开下方的二维码路径图片进行扫码。"
-        ].join("\n"));
-        fs__default.writeFile(qrcodePath, buffer, {}, () => {
-          logger.logWarn("二维码已保存到", qrcodePath);
-        });
-      });
-    };
-    loginListener.onQRCodeSessionFailed = (errType, errCode) => {
-      if (!isLogined) {
-        logger.logError("[Core] [Login] Login Error,ErrType: ", errType, " ErrCode:", errCode);
-        loginService.getQRCodePicture();
-      }
-    };
-    loginListener.onLoginFailed = (...args) => {
-      logger.logError("[Core] [Login] Login Error , ErrInfo: ", JSON.stringify(args));
-    };
-    loginService.addKernelLoginListener(proxiedListenerOf(loginListener, logger));
-    const isConnect = loginService.connect();
-    if (!isConnect) {
-      logger.logError("核心登录服务连接失败!");
-      return;
-    }
-    logger.log("核心登录服务连接成功!");
-    loginService.getLoginList().then((res) => {
-      const list = res.LocalLoginInfoList.filter((item) => item.isQuickLogin);
-      WebUiDataRuntime.setQQQuickLoginList(list.map((item) => item.uin.toString()));
-      WebUiDataRuntime.setQQNewLoginList(list);
+  let context = { isLogined: false };
+  let inner_resolve;
+  let selfInfo = new Promise((resolve) => {
+    inner_resolve = resolve;
+  });
+  const loginListener = new NodeIKernelLoginListener();
+  loginListener.onUserLoggedIn = (userid) => {
+    logger.logError(`当前账号(${userid})已登录,无法重复登录`);
+  };
+  loginListener.onQRCodeLoginSucceed = async (loginResult) => {
+    context.isLogined = true;
+    inner_resolve({
+      uid: loginResult.uid,
+      uin: loginResult.uin,
+      nick: "",
+      online: true
     });
-    WebUiDataRuntime.setQuickLoginCall(async (uin) => {
-      return await new Promise((resolve2) => {
-        if (uin) {
-          logger.log("正在快速登录 ", uin);
-          loginService.quickLoginWithUin(uin).then((res) => {
-            if (res.loginErrorInfo.errMsg) {
-              resolve2({ result: false, message: res.loginErrorInfo.errMsg });
-            }
-            resolve2({ result: true, message: "" });
-          }).catch((e) => {
-            logger.logError(e);
-            resolve2({ result: false, message: "快速登录发生错误" });
-          });
-        } else {
-          resolve2({ result: false, message: "快速登录失败" });
-        }
+  };
+  loginListener.onLoginConnected = () => {
+    waitForNetworkConnection(loginService, logger).then(() => {
+      handleLoginInner(context, logger, loginService, quickLoginUin, historyLoginList).then().catch((e) => logger.logError(e));
+    });
+  };
+  loginListener.onQRCodeGetPicture = ({ pngBase64QrcodeData, qrcodeUrl }) => {
+    WebUiDataRuntime.setQQLoginQrcodeURL(qrcodeUrl);
+    const realBase64 = pngBase64QrcodeData.replace(/^data:image\/\w+;base64,/, "");
+    const buffer = Buffer.from(realBase64, "base64");
+    logger.logWarn("请扫描下面的二维码，然后在手Q上授权登录：");
+    const qrcodePath = path__default.join(pathWrapper.cachePath, "qrcode.png");
+    qrcode.generate(qrcodeUrl, { small: true }, (res) => {
+      logger.logWarn([
+        "\n",
+        res,
+        "二维码解码URL: " + qrcodeUrl,
+        "如果控制台二维码无法扫码，可以复制解码url到二维码生成网站生成二维码再扫码，也可以打开下方的二维码路径图片进行扫码。"
+      ].join("\n"));
+      fs__default.writeFile(qrcodePath, buffer, {}, () => {
+        logger.logWarn("二维码已保存到", qrcodePath);
       });
     });
-    if (quickLoginUin) {
-      if (historyLoginList.some((u) => u.uin === quickLoginUin)) {
-        logger.log("正在快速登录 ", quickLoginUin);
-        setTimeout(() => {
-          loginService.quickLoginWithUin(quickLoginUin).then((result) => {
-            if (result.loginErrorInfo.errMsg) {
-              logger.logError("快速登录错误：", result.loginErrorInfo.errMsg);
-              if (!isLogined) loginService.getQRCodePicture();
-            }
-          }).catch();
-        }, 1e3);
-      } else {
-        logger.logError("快速登录失败，未找到该 QQ 历史登录记录，将使用二维码登录方式");
-        if (!isLogined) loginService.getQRCodePicture();
-      }
-    } else {
-      logger.log("没有 -q 指令指定快速登录，将使用二维码登录方式");
-      if (historyLoginList.length > 0) {
-        logger.log(`可用于快速登录的 QQ：
-${historyLoginList.map((u, index) => `${index + 1}. ${u.uin} ${u.nickName}`).join("\n")}`);
-      }
+  };
+  loginListener.onQRCodeSessionFailed = (errType, errCode) => {
+    if (!context.isLogined) {
+      logger.logError("[Core] [Login] Login Error,ErrType: ", errType, " ErrCode:", errCode);
       loginService.getQRCodePicture();
     }
+  };
+  loginListener.onLoginFailed = (...args) => {
+    logger.logError("[Core] [Login] Login Error , ErrInfo: ", JSON.stringify(args));
+  };
+  loginService.addKernelLoginListener(proxiedListenerOf(loginListener, logger));
+  loginService.connect();
+  return await selfInfo;
+}
+async function handleLoginInner(context, logger, loginService, quickLoginUin, historyLoginList) {
+  WebUiDataRuntime.setQuickLoginCall(async (uin) => {
+    return await new Promise((resolve) => {
+      if (uin) {
+        logger.log("正在快速登录 ", uin);
+        loginService.quickLoginWithUin(uin).then((res) => {
+          if (res.loginErrorInfo.errMsg) {
+            resolve({ result: false, message: res.loginErrorInfo.errMsg });
+          }
+          resolve({ result: true, message: "" });
+        }).catch((e) => {
+          logger.logError(e);
+          resolve({ result: false, message: "快速登录发生错误" });
+        });
+      } else {
+        resolve({ result: false, message: "快速登录失败" });
+      }
+    });
+  });
+  if (quickLoginUin) {
+    if (historyLoginList.some((u) => u.uin === quickLoginUin)) {
+      logger.log("正在快速登录 ", quickLoginUin);
+      loginService.quickLoginWithUin(quickLoginUin).then((result) => {
+        if (result.loginErrorInfo.errMsg) {
+          logger.logError("快速登录错误：", result.loginErrorInfo.errMsg);
+          if (!context.isLogined) loginService.getQRCodePicture();
+        }
+      }).catch();
+    } else {
+      logger.logError("快速登录失败，未找到该 QQ 历史登录记录，将使用二维码登录方式");
+      if (!context.isLogined) loginService.getQRCodePicture();
+    }
+  } else {
+    logger.log("没有 -q 指令指定快速登录，将使用二维码登录方式");
+    if (historyLoginList.length > 0) {
+      logger.log(`可用于快速登录的 QQ：
+${historyLoginList.map((u, index) => `${index + 1}. ${u.uin} ${u.nickName}`).join("\n")}`);
+    }
+    loginService.getQRCodePicture();
+  }
+  loginService.getLoginList().then((res) => {
+    const list = res.LocalLoginInfoList.filter((item) => item.isQuickLogin);
+    WebUiDataRuntime.setQQQuickLoginList(list.map((item) => item.uin.toString()));
+    WebUiDataRuntime.setQQNewLoginList(list);
   });
 }
 async function initializeSession(session, sessionConfig) {
@@ -83061,6 +83064,16 @@ async function handleProxy(session, logger) {
       isSocket: false
     });
   }
+}
+async function waitForNetworkConnection(loginService, logger) {
+  let network_ok = false;
+  while (!network_ok) {
+    network_ok = loginService.getMsfStatus() !== 3;
+    logger.log("等待网络连接...");
+    await sleep(500);
+  }
+  logger.log("网络已连接");
+  return network_ok;
 }
 async function NCoreInitShell() {
   console.log("NapCat Shell App Loading...");

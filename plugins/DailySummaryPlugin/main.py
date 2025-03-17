@@ -10,10 +10,12 @@ from collections import defaultdict
 from pathlib import Path
 
 from dotenv import load_dotenv
-from openai import OpenAI
 from ncatbot.plugin import BasePlugin, CompatibleEnrollment
 from ncatbot.core.message import GroupMessage
 from ncatbot.core.element import MessageChain, Text
+
+# 导入自定义 API 客户端
+from .api_client import create_api_client, BaseAPIClient
 
 bot = CompatibleEnrollment
 
@@ -53,7 +55,7 @@ class DailySummaryPlugin(BasePlugin):
                 "api_key": os.getenv("DEEPSEEK_API_KEY"),
                 "model": os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
                 "params": {
-                    "max_tokens": int(os.getenv("DEEPSEEK_MAX_TOKENS", "512")),
+                    "max_tokens": int(os.getenv("DEEPSEEK_MAX_TOKENS", "8192")),
                     "temperature": float(os.getenv("DEEPSEEK_TEMPERATURE", "0.4")),
                 }
             }
@@ -67,6 +69,19 @@ class DailySummaryPlugin(BasePlugin):
                 "params": {
                     "max_tokens": int(os.getenv("GLM_MAX_TOKENS", "256")),
                     "temperature": float(os.getenv("GLM_TEMPERATURE", "0.4")),
+                }
+            }
+        
+        # 加载百度文心配置
+        if os.getenv("BAIDU_API_KEY"):
+            api_configs["baidu"] = {
+                "base_url": os.getenv("BAIDU_BASE_URL", "https://qianfan.baidubce.com/v2"),
+                "api_key": os.getenv("BAIDU_API_KEY"),
+                "model": os.getenv("BAIDU_MODEL", "qwq-32b"),
+                "min_interval": os.getenv("BAIDU_MIN_INTERVAL", "2.0"),  # 最小调用间隔（秒）
+                "params": {
+                    "max_tokens": int(os.getenv("BAIDU_MAX_TOKENS", "2048")),
+                    "temperature": float(os.getenv("BAIDU_TEMPERATURE", "0.3")),
                 }
             }
         
@@ -166,31 +181,24 @@ class DailySummaryPlugin(BasePlugin):
         
         # 从.env加载API配置
         self.api_configs = self.load_env_variables()
-        self.clients = {}
+        self.api_clients = {}
         
         # 创建消息存储目录
         self.storage_dir = os.path.join(os.path.dirname(__file__), self.config["storage_path"])
         os.makedirs(self.storage_dir, exist_ok=True)
         
-        # 为每个已有总结时间记录的群组预加载最近的消息
-        for group_id in self.last_summary_time.keys():
-            # 使用 asyncio.create_task 替代 self.api.create_task
-            asyncio.create_task(self.preload_recent_messages(group_id))
-        
-        # 初始化OpenAI客户端字典
+        # 初始化 API 客户端
         for api_name, config in self.api_configs.items():
             if isinstance(config, dict) and "base_url" in config:
                 try:
-                    self.clients[api_name] = OpenAI(
-                        api_key=config["api_key"],
-                        base_url=config["base_url"]
-                    )
+                    self.api_clients[api_name] = create_api_client(api_name, config)
                     print(f"成功初始化API客户端: {api_name}")
                 except Exception as e:
                     print(f"初始化API客户端失败 {api_name}: {str(e)}")
         
         # 设置定时任务，使用自动总结间隔
         auto_interval = self.config.get("auto_summary_interval", 43200)  # 默认12小时
+        # 添加一个随机延迟，避免所有群组同时触发总结
         schedule.every(auto_interval).seconds.do(self.scheduled_summary)
         
         # 设置定期保存任务
@@ -203,13 +211,17 @@ class DailySummaryPlugin(BasePlugin):
         
         print(f"{self.name} 插件已加载")
         print(f"插件版本: {self.version}")
-        print(f"支持的API: {[k for k in self.clients.keys() if k != 'default']}")
+        print(f"支持的API: {[k for k in self.api_clients.keys() if k != 'default']}")
         print(f"默认API: {self.api_configs.get('default', 'none')}")
         print(f"消息存储路径: {self.storage_dir}")
         print(f"已加载 {len(self.last_summary_time)} 个群的总结时间记录")
         print(f"自动总结间隔: {auto_interval}秒 ({auto_interval/3600}小时)")
         print(f"手动总结间隔: {self.config.get('manual_summary_interval', 300)}秒")
         print(f"数据将每 {save_interval} 秒自动保存一次")
+        
+        # 不再在启动时预加载消息，而是在需要时按需加载
+        # 这样可以避免在启动时发送大量 API 请求
+        print(f"消息将在需要时按需加载")
     
     def run_scheduler(self):
         """运行定时任务"""
@@ -310,7 +322,7 @@ class DailySummaryPlugin(BasePlugin):
     async def generate_summary(self, messages: List[Dict], group_id: str) -> str:
         """使用 LLM 生成消息总结"""
         api_name = self.api_configs.get("default", "none")
-        if api_name == "none" or api_name not in self.clients:
+        if api_name == "none" or api_name not in self.api_clients:
             return "LLM 服务未正确初始化，无法生成总结。请检查 .env 文件中的 API 配置。"
         
         try:
@@ -319,42 +331,23 @@ class DailySummaryPlugin(BasePlugin):
             for msg in messages:
                 formatted_messages.append(f"[{msg['formatted_time']}] {msg['nickname']}({msg['user_id']}): {msg['content']}")
             
-            prompt = f"""请对以下群聊消息进行总结：
+            prompt = f"""请对以下编程技术讨论群的消息进行总结：
 
 {'\\n'.join(formatted_messages)}
 
-请以时间段为基础，简洁地总结以下内容：
-1. 各个时间段内的主要讨论主题
-2. 谁与谁之间进行了哪些重要互动或讨论
+请以讨论主题为基础，简洁地总结以下内容，按时间段列出讨论主题和主要内容：
+1. 各个讨论主题的主要内容
+2. 特别重要的链接或资源名称
+3. 主要的讨论成员（提到一两个主要成员即可）
 
-总结应当客观、全面，突出重点内容，忽略无意义的闲聊。总共在 200 字以内。
+总结应当客观、全面，突出重点内容，忽略无意义的闲聊。单个主题在 100 字以内。
 """
             
-            # 获取API配置
-            config = self.api_configs[api_name]
-            client = self.clients[api_name]
+            # 获取 API 客户端
+            api_client = self.api_clients[api_name]
             
-            # 准备API调用参数
-            api_params = {
-                "model": config["model"],
-                "messages": [
-                    {"role": "system", "content": "你是一个专业的群聊总结助手，善于提取重要信息并做出简洁的总结。"},
-                    {"role": "user", "content": prompt}
-                ],
-                "stream": False,
-            }
-            
-            # 添加其他参数
-            if "params" in config:
-                api_params.update(config["params"])
-            
-            # 调用API生成响应
-            response = client.chat.completions.create(**api_params)
-            
-            if response and hasattr(response, 'choices') and response.choices:
-                return response.choices[0].message.content
-            else:
-                return "对不起，我暂时无法生成总结，请稍后再试。"
+            # 使用 API 客户端生成总结
+            return await api_client.generate_summary(prompt)
                 
         except Exception as e:
             print(f"生成总结时出错: {str(e)}")
@@ -421,18 +414,40 @@ class DailySummaryPlugin(BasePlugin):
     
     async def scheduled_summary(self):
         """定时任务：为所有群生成总结"""
-        for group_id in self.message_store.keys():
+        # 获取所有需要处理的群组 ID
+        group_ids = list(self.message_store.keys())
+        
+        # 如果没有群组，直接返回
+        if not group_ids:
+            return
+            
+        for group_id in group_ids:
+            # 检查是否满足生成总结的条件
             can_summarize, error_msg = await self.check_summary_conditions(group_id, is_manual=False)
             if can_summarize:
                 # 过滤出上次总结之后的消息
                 messages = await self.filter_messages_after_last_summary(self.message_store[group_id], group_id)
-                if len(messages) >= self.config["min_messages"]:
-                    summary = await self.generate_summary(messages, group_id)
-                    await self.send_summary(group_id, summary)
-                    # 不清空消息存储，因为已经持久化到文件中
-                    # 但可以清空内存中的消息以节省内存
-                    self.message_store[group_id] = []
-    
+                
+                # 如果内存中的消息不足，尝试从文件加载
+                if len(messages) < self.config["min_messages"]:
+                    last_time = self.last_summary_time[group_id]
+                    recent_messages = await self.load_recent_messages(group_id, days=7, after_timestamp=last_time)
+                    if len(recent_messages) >= self.config["min_messages"]:
+                        messages = recent_messages
+                    else:
+                        # 消息不足，跳过此群组
+                        continue
+                
+                # 生成总结并发送
+                summary = await self.generate_summary(messages, group_id)
+                await self.send_summary(group_id, summary)
+                
+                # 清空内存中的消息以节省内存
+                self.message_store[group_id] = []
+                
+                # 添加延迟，避免频繁调用 API 触发限流
+                await asyncio.sleep(5)  # 每个群组之间添加 5 秒延迟
+                
     @bot.group_event()
     async def on_group_message(self, msg: GroupMessage):
         """处理群聊消息"""
@@ -441,28 +456,33 @@ class DailySummaryPlugin(BasePlugin):
         
         # 检查是否是触发关键词
         if msg.raw_message in self.config["trigger_keywords"]:
+            # 检查是否满足生成总结的条件
             can_summarize, error_msg = await self.check_summary_conditions(msg.group_id, is_manual=True)
             if can_summarize:
                 # 过滤出上次总结之后的消息
                 messages = await self.filter_messages_after_last_summary(self.message_store[msg.group_id], msg.group_id)
-                if len(messages) >= self.config["min_messages"]:
-                    summary = await self.generate_summary(messages, msg.group_id)
-                    await self.send_summary(msg.group_id, summary)
-                    self.message_store[msg.group_id] = []  # 清空内存中的消息
-                else:
-                    # 如果内存中的消息不足，尝试从文件加载最近的消息
-                    last_summary_time = self.last_summary_time[msg.group_id]
-                    recent_messages = await self.load_recent_messages(msg.group_id, days=7, after_timestamp=last_summary_time)
+                
+                # 如果内存中的消息不足，尝试从文件加载
+                if len(messages) < self.config["min_messages"]:
+                    last_time = self.last_summary_time[msg.group_id]
+                    recent_messages = await self.load_recent_messages(msg.group_id, days=7, after_timestamp=last_time)
                     if len(recent_messages) >= self.config["min_messages"]:
-                        summary = await self.generate_summary(recent_messages, msg.group_id)
-                        await self.send_summary(msg.group_id, summary)
+                        messages = recent_messages
                     else:
                         await msg.reply(text=f"自上次总结后消息数量不足 {self.config['min_messages']} 条，无法生成总结")
+                        return
+                
+                # 生成总结并发送
+                summary = await self.generate_summary(messages, msg.group_id)
+                await self.send_summary(msg.group_id, summary)
+                
+                # 清空内存中的消息
+                self.message_store[msg.group_id] = []
             else:
                 await msg.reply(text=error_msg)
 
     async def preload_recent_messages(self, group_id: str):
-        """预加载群组的最近消息"""
+        """预加载群组的最近消息（现在仅在需要时调用）"""
         try:
             # 获取上次总结时间
             last_time = self.last_summary_time[group_id]

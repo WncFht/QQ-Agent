@@ -13,10 +13,10 @@
             "api_key": "sk-f517db979fbc4d81869bfb246fa2abf1",
             "model": "deepseek-chat",
             "params": {
-                "max_tokens": 512,
+                "max_tokens": 8192,
                 "temperature": 0.4
             }
         },
-        "default": "deepseek"
+        "default": "baidu"
     }
 }
